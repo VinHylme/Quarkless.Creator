@@ -1,0 +1,8 @@
+C:\Users\yousef.alaw\source\repos\Quarkless.Creator\Quarkless.Creator\bin\Debug\netcoreapp3.0\Quarkless.Creator.deps.json
+C:\Users\yousef.alaw\source\repos\Quarkless.Creator\Quarkless.Creator\bin\Debug\netcoreapp3.0\Quarkless.Creator.dll
+C:\Users\yousef.alaw\source\repos\Quarkless.Creator\Quarkless.Creator\bin\Debug\netcoreapp3.0\Quarkless.Creator.pdb
+C:\Users\yousef.alaw\source\repos\Quarkless.Creator\Quarkless.Creator\obj\Debug\netcoreapp3.0\Quarkless.Creator.csprojAssemblyReference.cache
+C:\Users\yousef.alaw\source\repos\Quarkless.Creator\Quarkless.Creator\obj\Debug\netcoreapp3.0\Quarkless.Creator.AssemblyInfoInputs.cache
+C:\Users\yousef.alaw\source\repos\Quarkless.Creator\Quarkless.Creator\obj\Debug\netcoreapp3.0\Quarkless.Creator.AssemblyInfo.cs
+C:\Users\yousef.alaw\source\repos\Quarkless.Creator\Quarkless.Creator\obj\Debug\netcoreapp3.0\Quarkless.Creator.dll
+C:\Users\yousef.alaw\source\repos\Quarkless.Creator\Quarkless.Creator\obj\Debug\netcoreapp3.0\Quarkless.Creator.pdb
