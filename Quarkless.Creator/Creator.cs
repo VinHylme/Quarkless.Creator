@@ -16,7 +16,6 @@ using PuppeteerSharp.Input;
 namespace Quarkless.Creator
 {
 	#region Extensions 
-
 	public static class Ext
 	{
 		public static IEnumerable<T> TakeAny<T>(this IEnumerable<T> @items, int amount, Random random)
@@ -41,8 +40,8 @@ namespace Quarkless.Creator
 	}
 
 	#endregion
-	#region Models
 
+	#region Models
 	public enum TypeSpeed
 	{
 		Slowest,
@@ -50,7 +49,6 @@ namespace Quarkless.Creator
 		Medium,
 		Fast
 	}
-
 	public class ConnectResponse
 	{
 		public CResult result { get; set; }
@@ -93,7 +91,6 @@ namespace Quarkless.Creator
 		public string location { get; set; }
 		public int available { get; set; }
 	}
-
 	public class LoginReqProxyGuys
 	{
 		[JsonProperty("username")]
@@ -172,8 +169,6 @@ namespace Quarkless.Creator
 			Cookies = cookies;
 		}
 	}
-
-
 	public class ResponseContainer<TResponse>
 	{
 		public TResponse ResponseContent { get; set; }
@@ -223,6 +218,10 @@ namespace Quarkless.Creator
 		private const string PROXY_DISCONNECT_URL = "https://portal.proxyguys.com/api/v2/proxies/disconnect/";
 		private const string PROXY_RESET_URL = "https://portal.proxyguys.com/api/v2/proxies/reset/";
 
+		private int attempts = 3;
+
+		private bool isAuthenticated = false;
+		private ResultList proxySelected = null;
 		private IEnumerable<Cookie> cookies = null;
 		private HttpClientHandler handler
 		{
@@ -420,11 +419,15 @@ namespace Quarkless.Creator
 				#endregion
 
 				await Task.Delay(TimeSpan.FromSeconds(15));
+
+				var skipButton = await page.WaitForXPathAsync("//button[text()='Skip']");
+				await skipButton.ClickAsync();
+
+				await Task.Delay(TimeSpan.FromSeconds(10));
+
 				return true;
 
 			}
-
-			return true;
 		}
 		public async Task<bool> CreateAccountWithBrowserBrowser(FakerModel person)
 		{
@@ -616,56 +619,77 @@ namespace Quarkless.Creator
 			}
 			return results;
 		}
-		bool authenticated = false;
+
+		private async Task<Proxy> ConnectProxy()
+		{
+			if (cookies == null)
+			{
+				isAuthenticated = await LoginProxy(PROXY_GUYS_BASE_URL);
+			}
+
+			if (!isAuthenticated) return null;
+			var list = await GetAsync<ListOfProxies>(PROXY_LIST_URL);
+
+			if (!list.IsSuccess || !list.ResponseContent.result.Any()) return null;
+
+			proxySelected = list.ResponseContent.result.First();
+			var availableList = await GetAsync<Avaliablity>(PROXY_LIST_AVALIABLE_URL);
+
+			if (!availableList.IsSuccess || !availableList.ResponseContent.result.Any()) return null;
+
+			var avaliable = availableList.ResponseContent.result.Where(_ => _.available == 1);
+			var server = avaliable.TakeAny(1, _random).First();
+			var connectToProxyServer =
+				await GetAsync<ConnectResponse>($"{PROXY_CONNECT_URL}{proxySelected.uuid}/{server.id}");
+			var proxyPart = connectToProxyServer.ResponseContent.result;
+
+			return new Proxy
+			{
+				IP = proxyPart.ip,
+				Port = proxyPart.port,
+				Password = proxyPart.password,
+				Username = proxyPart.username
+			};
+		}
+		private async Task<bool> DisconnectProxy()
+		{
+			try
+			{
+				await GetAsync<object>($"{PROXY_DISCONNECT_URL}{proxySelected.uuid}");
+				return true;
+			}
+			catch (Exception e)
+			{
+				return false;
+			}
+		}
 
 		public async Task Create()
 		{
 			var person = GeneratePerson(emailProvider: "gmail.com");
+			
+			//var prx = await ConnectProxy();
 
-			Proxy prox = null;
-
-			if (cookies == null)
+			var prx = new Proxy
 			{
-				authenticated = await LoginProxy(PROXY_GUYS_BASE_URL);
-			}
+				IP = "213.123.164.83",
+				Port = 30018,
+				Username = "paneet",
+				Password = "lepaneet"
+			};
 
-			if (!authenticated) return;
-			ResultList proxySelected = null;
-			var list = await GetAsync<ListOfProxies>(PROXY_LIST_URL);
-			if (list.IsSuccess && list.ResponseContent.result.Any())
-			{
-				proxySelected = list.ResponseContent.result.First();
-				var availableList = await GetAsync<Avaliablity>(PROXY_LIST_AVALIABLE_URL);
-				if (availableList.IsSuccess && availableList.ResponseContent.result.Any())
+			if (prx == null)
+				if (attempts > 0)
 				{
-					var avaliable = availableList.ResponseContent.result.Where(_ => _.available == 1);
-					var server = avaliable.TakeAny(1, _random).First();
-					var connectToProxyServer =
-						await GetAsync<ConnectResponse>($"{PROXY_CONNECT_URL}{proxySelected.uuid}/{server.id}");
-					var proxyPart = connectToProxyServer.ResponseContent.result;
-
-					prox = new Proxy
-					{
-						IP = proxyPart.ip,
-						Port = proxyPart.port,
-						Password = proxyPart.password,
-						Username = proxyPart.username
-					};
+					Console.WriteLine($"No proxy found, will attempt to try again; attempt: {attempts}");
+					attempts--;
+					await Create();
 				}
-			}
-
-			if (prox == null) return;
-			person.Proxy = prox;
+				else
+					return;
 
 
-			try 
-			{
-				await CreateGmailAccount(person);
-			}
-			catch (Exception e)
-			{
-
-			}
+			person.Proxy = prx;
 
 			try
 			{
@@ -673,22 +697,36 @@ namespace Quarkless.Creator
 				{
 					File.AppendAllText(@"C:\Users\yousef.alaw\source\repos\Quarkless.Creator\Quarkless.Creator\accounts.txt",
 						JsonConvert.SerializeObject(person));
+					try
+					{
+						tryAgain:
+						if (await CreateGmailAccount(person))
+						{
+							Console.WriteLine("Successfully created email");
+							//verify account
+						}
+						else
+						{
+							goto  tryAgain;
+						}
+					}
+					catch (Exception e)
+					{
+						Console.WriteLine(e.Message);
+						await Create();
+					}
 				}
-
-				Console.WriteLine("Will try other account in 4 minutes");
-				await GetAsync<object>($"{PROXY_DISCONNECT_URL}{proxySelected.uuid}");
-
-				await Task.Delay(TimeSpan.FromMinutes(3));
-				await Create();
 			}
 			catch (Exception ee)
 			{
+				//await DisconnectProxy();
 				Console.WriteLine(ee.Message);
-				await GetAsync<object>($"{PROXY_DISCONNECT_URL}{proxySelected.uuid}");
-
 				await Create();
 			}
-			
+
+			Console.WriteLine("Will begin again in 4 minutes");
+			await Task.Delay(TimeSpan.FromMinutes(4));
+			await Create();
 		}
 
 		#region Russian Spy Stuff
@@ -833,6 +871,8 @@ namespace Quarkless.Creator
 
 			var firstName = faker.Name.FirstName(gender);
 			var lastName = faker.Name.LastName(gender);
+			
+			if (string.IsNullOrEmpty(lastName)) GeneratePerson(locale, emailProvider, isMale);
 
 			var userName = faker.Internet.UserName(firstName, lastName) + "." + _random.Next(1, 1050);
 
